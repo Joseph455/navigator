@@ -1,0 +1,8 @@
+version: '3'
+
+services:
+  ros:
+    build:
+      context: .
+    volumes:
+      - ./catkin_ws/:/catkin_ws/    
