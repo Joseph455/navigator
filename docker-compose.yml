@@ -1,8 +1,20 @@
-version: '3'
-
 services:
   ros:
     build:
       context: .
+    command: /bin/bash -c "
+        source ./devel/setup.bash &&
+        roslaunch turt_q_learn brick_world.launch"
+    environment:
+      - DISPLAY=${DISPLAY}
+      - QT_X11_NO_MITSHM=1
+      - SVGA_VGPU10=0
+      - TURTLEBOT3_MODEL=waffle_pi
     volumes:
-      - ./catkin_ws/:/catkin_ws/    
+      - ./catkin_ws/:/catkin_ws/
+      - /tmp/.X11-unix:/tmp/.X11-unix
+      - /dev/dri:/dev/dri
+    ports:
+      - 11311:11311
+      - 43917:43917
+      - 11345:11345

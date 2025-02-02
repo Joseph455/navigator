@@ -105,7 +105,7 @@ class pathFinder():
 	def gradDesc(self, goal, start): # populates grid with values increasing with disctance from goal, then returns path from target by taking the minimum neighbour until target is reached
 		self.genPathMap()
 		if (self.pathMap[goal[0]][goal[1]] != 1 or self.pathMap[start[0]][start[1]] != 1):
-			print "Error!!!!!!!!"
+			print("Error!!!!!!!!")
 			return		
 			
 		neighbours = [[-1, True], [1, True], [-1, False], [1, False]]

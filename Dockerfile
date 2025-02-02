@@ -41,8 +41,8 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 
 ENV PYTHONPATH=/catkin_ws
-ENV TURTLEBOT3_MODEL=waffle_pi
 ENV UV_HTTP_TIMEOUT=10000
+ENV TURTLEBOT3_MODEL=waffle_pi
 
 RUN cd /catkin_ws/
 
@@ -51,8 +51,3 @@ RUN sudo rosdep update
 
 # Build the workspace
 RUN /bin/bash -c "source /opt/ros/noetic/setup.bash && catkin_make -DPYTHON_EXECUTABLE=/usr/bin/python3"
-
-# Source the workspace
-RUN /bin/bash -c "source ./devel/setup.bash" >> ~/.bashrc
-
-
