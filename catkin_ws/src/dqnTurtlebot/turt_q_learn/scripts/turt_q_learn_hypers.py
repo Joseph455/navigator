@@ -1,11 +1,19 @@
 #!/usr/bin/env python
-from geometry_msgs.msg import  Pose,Twist
+from geometry_msgs.msg import Pose, Twist
 from nav_msgs.msg import Odometry
 from sensor_msgs.msg import LaserScan
 from gazebo_msgs.srv import SpawnModel, DeleteModel, SetModelState, SetModelStateRequest, GetWorldProperties
 from collections import deque
 from itertools import product
-import rospy, datetime, random, math, os, tensorflow as tf, numpy as np, matplotlib.pyplot as plt
+import rospy
+import datetime
+import random 
+import math
+import os 
+import tensorflow as tf
+import numpy as np
+import matplotlib.pyplot as plt
+
 
 crashDistances = { # wall collision distance per model
 	"turtlebot3_burger": .12,
@@ -14,7 +22,7 @@ crashDistances = { # wall collision distance per model
 	"turtlebot3_waffle_front": .22,
 }
 
-ACTION_SPACE = [2.5,1.25,0,-1.25,-2.5] # angular velocities for bot
+ACTION_SPACE = [2.5, 1.25, 0, -1.25, -2.5] # angular velocities for bot
 TURTLEBOT_NAME = "turtlebot3_burger"
 SCAN_MIN_DISTANCE = crashDistances[TURTLEBOT_NAME] # distance to detect wall collision
 SCAN_MIN_DISTANCE_FRONT = crashDistances[TURTLEBOT_NAME + "_front"]
@@ -32,11 +40,23 @@ class modelClass():
 		saveName = "myModel - "
 	): # build models, set required parameters
 		self.env = env
+
 		self.turt_q_learn_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 		if hyperParams["Load Model"]:
-			self.model = tf.compat.v1.keras.models.load_model(self.turt_q_learn_path + "/load_model/model" )
+			self.model = tf.compat.v1.keras.models.load_model(
+				filepath=f"{self.turt_q_learn_path}/load_model/model",
+			)
 		else:
-			self.model = genModel(hyperParams["Optimizer"], hyperParams["Loss"], hyperParams["Learning Rate"], hyperParams["First Activation"], hyperParams["Hidden Activations"], hyperParams["Last Activation"], hyperParams["State Space"], hyperParams["Initializer"])
+			self.model = genModel(
+				hyperParams["Optimizer"], 
+				hyperParams["Loss"], 
+				hyperParams["Learning Rate"], 
+				hyperParams["First Activation"], 
+				hyperParams["Hidden Activations"], 
+				hyperParams["Last Activation"], 
+				hyperParams["State Space"], 
+				hyperParams["Initializer"],
+			)
 		self.targetModel = tf.compat.v1.keras.models.clone_model(self.model)
 		self.targetModel.set_weights(self.model.get_weights())
 		self.episodes = hyperParams["Episodes"]
@@ -172,7 +192,7 @@ class envWrapper():
 			heading -= 2 * math.pi
 		elif heading < -math.pi:
 			heading += 2 * math.pi
-			
+
 		# get odom data
 		#modelZ = odomData.twist.twist.angular.z
 			

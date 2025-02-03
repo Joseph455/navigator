@@ -1,5 +1,9 @@
 # Drone Navigation Agent using Q-Learning
 
+
+### Prerequisites
+
+- Ensure that [Docker](https://docs.docker.com/get-docker/) is installed on your mach
 This project implements a deep reinforcement learning framework to train a drone navigation agent using Q-Learning, simulated in a ROS-1 environment. It is based on the [dqnTurtlebot](https://github.com/sgawalsh/dqnTurtlebot) repository and serves as a submission for a term project.
 
 ## Project Purpose
@@ -8,11 +12,7 @@ The primary objective of this project is to develop a Deep Q-Learning model capa
 
 ## Getting Started with Docker
 
-Follow the steps below to set up and run the project using Docker.
-
-### Prerequisites
-
-- Ensure that [Docker](https://docs.docker.com/get-docker/) is installed on your machine.
+Follow the steps below to set up and run the project using Docker.ine.
 
 ### Setup Instructions
 

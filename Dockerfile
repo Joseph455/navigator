@@ -42,7 +42,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 ENV PYTHONPATH=/catkin_ws
 ENV UV_HTTP_TIMEOUT=10000
-ENV TURTLEBOT3_MODEL=waffle_pi
+ENV TURTLEBOT3_MODEL=burger
 
 RUN cd /catkin_ws/
 

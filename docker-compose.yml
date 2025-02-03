@@ -9,7 +9,7 @@ services:
       - DISPLAY=${DISPLAY}
       - QT_X11_NO_MITSHM=1
       - SVGA_VGPU10=0
-      - TURTLEBOT3_MODEL=waffle_pi
+      - TURTLEBOT3_MODEL=burger
     volumes:
       - ./catkin_ws/:/catkin_ws/
       - /tmp/.X11-unix:/tmp/.X11-unix
