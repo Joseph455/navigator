@@ -10,13 +10,15 @@ import datetime
 import random 
 import math
 import os 
+import tf as tf_ros
 import tensorflow as tf
 import numpy as np
 import matplotlib.pyplot as plt
 
 
+
 crashDistances = { # wall collision distance per model
-	"turtlebot3_burger": .12,
+	"turtlebot3_burger": 0.13,
 	"turtlebot3_burger_front": .20,
 	"turtlebot3_waffle": .22,
 	"turtlebot3_waffle_front": .22,
@@ -39,7 +41,7 @@ class modelClass():
 		env,
 		saveName = "myModel - "
 	): # build models, set required parameters
-		self.env = env
+		self.env: envWrapper = env
 
 		self.turt_q_learn_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 		if hyperParams["Load Model"]:
@@ -76,7 +78,7 @@ class modelClass():
 		 
 	def getAction(self, state): # generate random value, if greater than epsilon, choose action according to model, else, choose action randomly
 		return (np.argmax(self.model.predict(state)) if random.random() > self.epsilon else random.randint(0, 4))
-	
+
 	def playEpisodes(self): # complete set amount of episodes, return numpy array of scores from each
 		scores = []
 		for epNum in range(self.episodes):
@@ -150,6 +152,8 @@ class modelClass():
 class envWrapper():
 	
 	def __init__(self, params): # Set required parameters
+		rospy.Subscriber('/scan', LaserScan, self.laser_callback)
+		rospy.Subscriber('/odom', Odometry, self.odom_callback)
 		self.actionPublisher = rospy.Publisher('cmd_vel', Twist, queue_size = 10)
 		self.goalX, self.goalY = 0, 0
 		self.goalDistanceOld = None
@@ -162,75 +166,108 @@ class envWrapper():
 		self.maxScanRange = params["Max Scan Range"]
 		self.scanRewardScalar = params["Scan Reward Scaler"]
 		self.modelX, self.modelY = None, None
-		
+		self.scan_data = []
+		self.odometry = None
+
 	def getState(self, ranges): # read laser ranges, get goal info
 		#ranges = [range2State(r) for i, r in enumerate(ranges) if not i % self.scanRatio]
 		ranges = [(self.maxScanRange if str(r) == 'inf' else min(r, self.maxScanRange)) for i, r in enumerate(ranges) if not i % self.scanRatio]
 		goalInfo = self.getGoalOdomStateInfo()
 		return np.asarray(ranges + goalInfo).reshape(1, self.stateSpace)
-		
-	def getGoalOdomStateInfo(self): # get distance and angle to goal
-		odomData = None
-		while odomData is None:
-			try:
-				odomData = rospy.wait_for_message('odom', Odometry, timeout=5)
-			except Exception as e:
-				pass
-		
-		# get goal data
-		self.modelX = odomData.pose.pose.position.x
-		self.modelY = odomData.pose.pose.position.y
-		
-		goalDistance = math.hypot(self.goalX - self.modelX, self.goalY - self.modelY)
-		goalAngle = math.atan2(self.goalY - self.modelY, self.goalX - self.modelX)
-		modelAngle = odomData.pose.pose.orientation
-				
-		yaw = math.atan2(+2.0 * (modelAngle.w * modelAngle.z + modelAngle.x * modelAngle.y), 1.0 - 2.0 * (modelAngle.y * modelAngle.y + modelAngle.z * modelAngle.z))
-		
-		heading = goalAngle - yaw
-		if heading > math.pi:
-			heading -= 2 * math.pi
-		elif heading < -math.pi:
-			heading += 2 * math.pi
 
-		# get odom data
-		#modelZ = odomData.twist.twist.angular.z
-			
-		return [odomData.twist.twist.angular.z, goalDistance, heading]
-		
-	def step(self, action): # publish action and read new state, reward, and done variables
-		self.actionPublisher.publish(genTwist(action))
-		
-		data = None
-		while data is None:
-			try:
-				data = rospy.wait_for_message('scan', LaserScan, timeout=5).ranges
-			except:
-				pass
-		
-		newState = self.getState(data)
+	def odom_callback(self, msg: Odometry) -> None:
+		self.odometry = msg
+
+	def getGoalOdomStateInfo(self):
+		"""Get distance and heading to the goal based on odometry."""
+		if self.odometry is None:
+			rospy.logerr("Could not retrieve odometry data. Returning default values.")
+			return [0.0, float('inf'), 0.0]  # Default: No movement, infinite distance
+
+		# Extract robot's position
+		self.modelX = self.odometry.pose.pose.position.x
+		self.modelY = self.odometry.pose.pose.position.y
+
+		# Compute distance to goal
+		goalDistance = math.hypot(self.goalX - self.modelX, self.goalY - self.modelY)
+
+		# Compute goal angle
+		goalAngle = math.atan2(self.goalY - self.modelY, self.goalX - self.modelX)
+
+		# Extract quaternion & convert to yaw
+		orientation = self.odometry.pose.pose.orientation
+		quaternion = [orientation.x, orientation.y, orientation.z, orientation.w]
+		(_, _, yaw) = tf_ros.transformations.euler_from_quaternion(quaternion)
+
+		# Calculate heading error & normalize it to [-π, π]
+		heading = goalAngle - yaw
+		heading = (heading + math.pi) % (2 * math.pi) - math.pi  
+
+		# Get current angular velocity
+		angularVelocity = self.odometry.twist.twist.angular.z
+
+		return [angularVelocity, goalDistance, heading]		
+
+	def laser_callback(self, data):
+		"""Update LIDAR scan data."""
+		self.scan_data = data.ranges  # Store laser scan ranges
+
+	# def check_collision(self, threshold=0.5):
+	# 	"""Check if there's an obstacle within `threshold` meters in front of the robot."""
+
+	# 	if not self.scan_data:
+	# 		return False  # No scan data available yet
+
+	# 	# Extract relevant scan data
+	# 	front_scan = self.scan_data[:89] + self.scan_data[-89:]  # ±30° front
+	# 	front_scan = [d for d in front_scan if d > 0]  # Remove invalid readings
+
+	# 	if not front_scan:
+	# 		return False  # No valid data, assume no collision
+
+	# 	# Use median distance to reduce noise effects
+	# 	front_distance = sorted(front_scan)[len(front_scan) // 2]  
+
+	# 	return front_distance < threshold  # True if obstacle detected
+
+	def step(self, action): 
+		"""Controls robot motion to reach the goal while avoiding obstacles intelligently."""
+		twist = genTwist(action)
+		angularVel, distance, heading = self.getGoalOdomStateInfo()
+
+		# Stop if very close to the goal
+		if distance < 0.05:
+			rospy.loginfo("Goal reached!")
+			twist.linear.x = 0.0
+			twist.angular.z = 0.0
+			self.actionPublisher.publish(twist)
+			return self.getState(self.scan_data), self.getReward(self.scan_data[0])
+
+		# Proportional control for rotation (align with goal)
+		angular_kp = 1.5  
+		max_angular_speed = 0.5  
+		twist.angular.z = max(-max_angular_speed, min(max_angular_speed, angular_kp * heading))
+
+		# **Move forward if no collision detected**
+		if abs(heading) < 0.2:  
+			twist.linear.x = 0.2  # Move forward if aligned
+		else:
+			twist.linear.x = 0.05  # Reduce speed when turning
+
+		self.actionPublisher.publish(twist)
+
+		newState = self.getState(self.scan_data)
 		reward, done = self.getReward(newState[0])
-		
 		return newState, reward, done
-		
+
 	def resetState(self): # respawn turtle and goal models, get initial state
 		deleteModel("goal")
-		goalSpawned = False
 		self.goalX, self.goalY = getGoalCoord(-1, 0)
 		self.teleportModel(TURTLEBOT_NAME, -1.5, 0)
-		while not goalSpawned:
-			spawnModel("goal", self.goalX, self.goalY)
-			goalSpawned = checkModelPresent("goal")
-		print("	New goal at {0}, {1}!".format(self.goalX, self.goalY))
-			
-		data = None
-		while data is None:
-			try:
-				data = rospy.wait_for_message('scan', LaserScan, timeout=5).ranges
-			except:
-				pass
-				
-		return self.getState(data)
+		spawnModel("goal", self.goalX, self.goalY)
+		rospy.sleep(0.5)
+		print("	New goal at {0}, {1}!".format(self.goalX, self.goalY))				
+		return self.getState(self.scan_data)
 
 	def getReward(self, state): # check if crash occured, if goal was reached, if distance to target increased / angle towards target, return reward + doneState accordingly
 		
@@ -272,7 +309,7 @@ def deleteModel(modelName): # using delete on turtlebot3 crashes gazebo, check i
 		rospy.wait_for_service('gazebo/get_world_properties')
 		get_world_properties = rospy.ServiceProxy('/gazebo/get_world_properties', GetWorldProperties)
 		resp = get_world_properties()
-		if "goal" in resp.model_names:
+		if modelName in resp.model_names:
 			break
 		else:
 			return
@@ -370,7 +407,7 @@ if __name__ == '__main__':
 			"Scan Ratio": [12], # how wany of the 360 scans are read, larger number -> less scan count
 			"Max Scan Range": [1], # how far each scan ray sees, max 3.5
 			"Scan Reward Scaler": [1],
-			"Learning Rate": [0.0002],
+			"Learning Rate": [0.002],
 			"Optimizer": [tf.compat.v1.keras.optimizers.RMSprop],
 			"Loss": [tf.compat.v1.losses.huber_loss],
 			"Batch Size": [100], # memories examined per step
@@ -404,7 +441,7 @@ if __name__ == '__main__':
 		keys, values = zip(*hyperParameterList.items())
 		maxAvg, maxFinalAvg = -1000000, -1000000
 		bestParams, bestFinalParams = {}, {}
-		
+
 		for v in product(*values):
 			experiment = dict(zip(keys, v)) # generate hyperparameter combination
 			print("Using hyperparams: " + str(experiment))
